@@ -1,4 +1,4 @@
-"""Integration test examples for MQTT gateway functionality."""
+"""Runnable examples for MQTT gateway functionality."""
 
 from solaredgemodbus2mqtt.solaredge_modbus.client import SolarEdgeModbusClient
 from solaredgemodbus2mqtt.mqtt import MQTTBridge, MQTTConfig, MQTTReader, MQTTWriter
@@ -8,17 +8,18 @@ def example_mqtt_writer() -> None:
     """Example: Publish Modbus values to MQTT."""
     # Create Modbus client
     client = SolarEdgeModbusClient.tcp("127.0.0.1", port=1502)
-    client.connect()
-
-    # Create MQTT writer
-    mqtt_config = MQTTConfig(
-        broker_host="127.0.0.1",
-        broker_port=1883,
-    )
-    writer = MQTTWriter(mqtt_config, base_topic="solaredge/modbus")
-    writer.connect()
-
+    writer = None
     try:
+        client.connect()
+
+        # Create MQTT writer
+        mqtt_config = MQTTConfig(
+            broker_host="127.0.0.1",
+            broker_port=1883,
+        )
+        writer = MQTTWriter(mqtt_config, base_topic="solaredge/modbus")
+        writer.connect()
+
         # Read and publish inverter data
         inverter_data = client.read_inverter_data()
         writer.publish_model("inverter", inverter_data.to_dict())
@@ -32,7 +33,8 @@ def example_mqtt_writer() -> None:
         writer.publish_register("inverter_status", value)
 
     finally:
-        writer.disconnect()
+        if writer is not None:
+            writer.disconnect()
         client.close()
 
 
@@ -40,31 +42,33 @@ def example_mqtt_reader() -> None:
     """Example: Listen for MQTT write commands and apply to Modbus."""
     # Create Modbus client
     client = SolarEdgeModbusClient.tcp("127.0.0.1", port=1502)
-    client.connect()
-
-    # Define callback for write operations
-    def handle_write(address: int, value: int | list[int]) -> None:
-        """Handle incoming MQTT write command."""
-        if isinstance(value, list):
-            client.write_registers(address, value)
-            print(f"Wrote registers at {address}: {value}")
-        else:
-            client.write_register(address, value)
-            print(f"Wrote register at {address}: {value}")
-
-    # Create and start MQTT reader
-    mqtt_config = MQTTConfig(
-        broker_host="127.0.0.1",
-        broker_port=1883,
-    )
-    reader = MQTTReader(mqtt_config, handle_write, base_topic="solaredge/modbus/set")
-    reader.connect()
-
+    reader = None
     try:
+        client.connect()
+
+        # Define callback for write operations
+        def handle_write(address: int, value: int | list[int]) -> None:
+            """Handle incoming MQTT write command."""
+            if isinstance(value, list):
+                client.write_registers(address, value)
+                print(f"Wrote registers at {address}: {value}")
+            else:
+                client.write_register(address, value)
+                print(f"Wrote register at {address}: {value}")
+
+        # Create and start MQTT reader
+        mqtt_config = MQTTConfig(
+            broker_host="127.0.0.1",
+            broker_port=1883,
+        )
+        reader = MQTTReader(mqtt_config, handle_write, base_topic="solaredge/modbus/set")
+        reader.connect()
+
         # Listen for messages for 60 seconds
         reader.wait_for_messages(timeout=60)
     finally:
-        reader.disconnect()
+        if reader is not None:
+            reader.disconnect()
         client.close()
 
 
@@ -74,20 +78,21 @@ def example_mqtt_bridge() -> None:
 
     # Create Modbus client
     client = SolarEdgeModbusClient.tcp("127.0.0.1", port=1502)
-    client.connect()
-
-    # Create bridge
-    mqtt_config = MQTTConfig(
-        broker_host="127.0.0.1",
-        broker_port=1883,
-    )
-    bridge = MQTTBridge(client, mqtt_config, base_topic="solaredge/modbus")
-
-    # Start both reader and writer
-    writer = bridge.start_writer()
-    reader = bridge.start_reader()
-
+    bridge = None
     try:
+        client.connect()
+
+        # Create bridge
+        mqtt_config = MQTTConfig(
+            broker_host="127.0.0.1",
+            broker_port=1883,
+        )
+        bridge = MQTTBridge(client, mqtt_config, base_topic="solaredge/modbus")
+
+        # Start both reader and writer
+        bridge.start_writer()
+        bridge.start_reader()
+
         print("Bridge started. Publishing and listening for commands...")
 
         # Publish every 30 seconds
@@ -102,7 +107,8 @@ def example_mqtt_bridge() -> None:
 
             time.sleep(30)
     finally:
-        bridge.stop()
+        if bridge is not None:
+            bridge.stop()
         client.close()
 
 

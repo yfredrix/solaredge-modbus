@@ -13,6 +13,13 @@ from ..mqtt import MQTTBridge, MQTTConfig
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 
+def _positive_float(value: str) -> float:
+    parsed = float(value)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be a positive number")
+    return parsed
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="SolarEdge Modbus (SunSpec) utility")
     parser.add_argument("--transport", choices=["tcp", "rtu"], default="tcp")
@@ -27,15 +34,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--parity", default="N")
     parser.add_argument("--stopbits", type=int, default=1)
 
-    # MQTT arguments
-    parser.add_argument("--mqtt-host", default="127.0.0.1", help="MQTT broker host")
-    parser.add_argument("--mqtt-port", type=int, default=1883, help="MQTT broker port")
-    parser.add_argument("--mqtt-username", help="MQTT username")
-    parser.add_argument("--mqtt-password", help="MQTT password")
-    parser.add_argument("--mqtt-client-id", default="solaredge-modbus", help="MQTT client ID")
-    parser.add_argument("--mqtt-topic", default="solaredge/modbus", help="MQTT base topic")
-
     subparsers = parser.add_subparsers(dest="command", required=True)
+    mqtt_parser = argparse.ArgumentParser(add_help=False)
+    mqtt_parser.add_argument("--mqtt-host", default="127.0.0.1", help="MQTT broker host")
+    mqtt_parser.add_argument("--mqtt-port", type=int, default=1883, help="MQTT broker port")
+    mqtt_parser.add_argument("--mqtt-username", help="MQTT username")
+    mqtt_parser.add_argument("--mqtt-password", help="MQTT password")
+    mqtt_parser.add_argument("--mqtt-client-id", default="", help="MQTT client ID")
+    mqtt_parser.add_argument("--mqtt-topic", default="solaredge/modbus", help="MQTT base topic")
 
     subparsers.add_parser("read-common", help="Read SunSpec common model")
     subparsers.add_parser("read-inverter", help="Read inverter model 101/102/103")
@@ -57,21 +63,23 @@ def build_parser() -> argparse.ArgumentParser:
     set_device.add_argument("new_unit_id", type=int, help="New ID in range 1..247")
 
     # MQTT commands
-    mqtt_pub = subparsers.add_parser("mqtt-publish", help="Publish Modbus values to MQTT")
-    mqtt_pub.add_argument("--interval", type=float, default=30.0, help="Publish interval in seconds")
+    mqtt_pub = subparsers.add_parser("mqtt-publish", parents=[mqtt_parser], help="Publish Modbus values to MQTT")
+    mqtt_pub.add_argument("--interval", type=_positive_float, default=30.0, help="Publish interval in seconds")
     mqtt_pub.add_argument(
         "--models", nargs="+", choices=["common", "inverter", "mppt"], default=["inverter"], help="Which models to publish"
     )
 
-    mqtt_listen = subparsers.add_parser("mqtt-listen", help="Listen for MQTT write commands")
-    mqtt_listen.add_argument("--timeout", type=float, help="How long to listen (seconds)")
+    mqtt_listen = subparsers.add_parser("mqtt-listen", parents=[mqtt_parser], help="Listen for MQTT write commands")
+    mqtt_listen.add_argument("--timeout", dest="listen_timeout", type=_positive_float, help="How long to listen (seconds)")
 
-    mqtt_bridge = subparsers.add_parser("mqtt-bridge", help="Run bi-directional MQTT bridge (publish + listen)")
-    mqtt_bridge.add_argument("--publish-interval", type=float, default=30.0, help="Publish interval in seconds")
+    mqtt_bridge = subparsers.add_parser(
+        "mqtt-bridge", parents=[mqtt_parser], help="Run bi-directional MQTT bridge (publish + listen)"
+    )
+    mqtt_bridge.add_argument("--publish-interval", type=_positive_float, default=30.0, help="Publish interval in seconds")
     mqtt_bridge.add_argument(
         "--models", nargs="+", choices=["common", "inverter", "mppt"], default=["inverter"], help="Which models to publish"
     )
-    mqtt_bridge.add_argument("--timeout", type=float, help="How long to run (seconds)")
+    mqtt_bridge.add_argument("--timeout", dest="bridge_timeout", type=_positive_float, help="How long to run (seconds)")
 
     return parser
 
@@ -121,8 +129,8 @@ def _handle_mqtt_publish(client: SolarEdgeModbusClient, args: argparse.Namespace
 
     client.connect()
     try:
-        bridge = MQTTBridge(client, mqtt_config, args.mqtt_topic)
-        writer = bridge.start_writer()
+        bridge = MQTTBridge(client, mqtt_config, args.mqtt_topic, modbus_unit=args.unit)
+        bridge.start_writer()
 
         print(f"Publishing to {args.mqtt_host}:{args.mqtt_port} on topic {args.mqtt_topic}")
         print(f"Models: {', '.join(args.models)}")
@@ -134,17 +142,17 @@ def _handle_mqtt_publish(client: SolarEdgeModbusClient, args: argparse.Namespace
                 iteration += 1
                 try:
                     if "common" in args.models:
-                        data = client.read_common_model(unit=args.unit)
+                        data = bridge.modbus_call(lambda: client.read_common_model(unit=args.unit))
                         bridge.publish_common_model(data.to_dict())
                         print(f"[{iteration}] Published common model")
 
                     if "inverter" in args.models:
-                        data = client.read_inverter_data(unit=args.unit)
+                        data = bridge.modbus_call(lambda: client.read_inverter_data(unit=args.unit))
                         bridge.publish_inverter_data(data.to_dict())
                         print(f"[{iteration}] Published inverter data")
 
                     if "mppt" in args.models:
-                        data = client.read_mppt_model(unit=args.unit)
+                        data = bridge.modbus_call(lambda: client.read_mppt_model(unit=args.unit))
                         bridge.publish_mppt_data(data.to_dict())
                         print(f"[{iteration}] Published MPPT data")
 
@@ -166,7 +174,7 @@ def _handle_mqtt_listen(client: SolarEdgeModbusClient, args: argparse.Namespace)
 
     client.connect()
     try:
-        bridge = MQTTBridge(client, mqtt_config, args.mqtt_topic)
+        bridge = MQTTBridge(client, mqtt_config, args.mqtt_topic, modbus_unit=args.unit)
         reader = bridge.start_reader()
 
         print(f"Listening on {args.mqtt_host}:{args.mqtt_port}")
@@ -175,10 +183,10 @@ def _handle_mqtt_listen(client: SolarEdgeModbusClient, args: argparse.Namespace)
         print("Press Ctrl+C to stop...\n")
 
         try:
-            reader.wait_for_messages(timeout=args.timeout)
-            if args.timeout:
-                print(f"\nTimeout after {args.timeout} seconds")
-            return 0
+            reader.wait_for_messages(timeout=args.listen_timeout)
+            if args.listen_timeout:
+                print(f"\nTimeout after {args.listen_timeout} seconds")
+                return 0
         except KeyboardInterrupt:
             print("\nStopped")
             return 0
@@ -193,9 +201,9 @@ def _handle_mqtt_bridge(client: SolarEdgeModbusClient, args: argparse.Namespace)
 
     client.connect()
     try:
-        bridge = MQTTBridge(client, mqtt_config, args.mqtt_topic)
-        writer = bridge.start_writer()
-        reader = bridge.start_reader()
+        bridge = MQTTBridge(client, mqtt_config, args.mqtt_topic, modbus_unit=args.unit)
+        bridge.start_writer()
+        bridge.start_reader()
 
         print(f"MQTT Bridge started")
         print(f"Broker: {args.mqtt_host}:{args.mqtt_port}")
@@ -206,6 +214,7 @@ def _handle_mqtt_bridge(client: SolarEdgeModbusClient, args: argparse.Namespace)
 
         iteration = 0
         last_publish = time.time()
+        start_time = last_publish
 
         try:
             while True:
@@ -216,15 +225,15 @@ def _handle_mqtt_bridge(client: SolarEdgeModbusClient, args: argparse.Namespace)
                     iteration += 1
                     try:
                         if "common" in args.models:
-                            data = client.read_common_model(unit=args.unit)
+                            data = bridge.modbus_call(lambda: client.read_common_model(unit=args.unit))
                             bridge.publish_common_model(data.to_dict())
 
                         if "inverter" in args.models:
-                            data = client.read_inverter_data(unit=args.unit)
+                            data = bridge.modbus_call(lambda: client.read_inverter_data(unit=args.unit))
                             bridge.publish_inverter_data(data.to_dict())
 
                         if "mppt" in args.models:
-                            data = client.read_mppt_model(unit=args.unit)
+                            data = bridge.modbus_call(lambda: client.read_mppt_model(unit=args.unit))
                             bridge.publish_mppt_data(data.to_dict())
 
                         print(f"[{iteration}] Published data")
@@ -233,10 +242,9 @@ def _handle_mqtt_bridge(client: SolarEdgeModbusClient, args: argparse.Namespace)
 
                     last_publish = current_time
 
-                    # Check timeout
-                    if args.timeout and current_time - last_publish >= args.timeout:
-                        print(f"\nTimeout after {args.timeout} seconds")
-                        return 0
+                if args.bridge_timeout and current_time - start_time >= args.bridge_timeout:
+                    print(f"\nTimeout after {args.bridge_timeout} seconds")
+                    return 0
 
                 time.sleep(1)
         except KeyboardInterrupt:

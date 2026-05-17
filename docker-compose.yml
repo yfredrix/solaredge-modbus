@@ -5,8 +5,8 @@ services:
   mosquitto:
     image: eclipse-mosquitto:latest
     ports:
-      - "1883:1883"
-      - "9001:9001"
+      - "127.0.0.1:1883:1883"
+      - "127.0.0.1:9001:9001"
     volumes:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
       - mosquitto_data:/mosquitto/data
@@ -18,7 +18,7 @@ volumes:
   mosquitto_data:
 
 # Usage:
-# 1. Start services: docker-compose up -d
+# 1. Start services: docker compose up -d
 # 2. In another terminal, run: solaredge-modbus mqtt-bridge --mqtt-host localhost
-# 3. Monitor messages: docker exec -it solaredge_modbus-mosquitto_1 mosquitto_sub -t 'solaredge/#' -v
-# 4. Send commands: docker exec -it solaredge_modbus-mosquitto_1 mosquitto_pub -t 'solaredge/set/register/40245' -m '{"value": 50}'
+# 3. Monitor messages: docker compose exec mosquitto mosquitto_sub -t 'solaredge/#' -v
+# 4. Send commands: docker compose exec mosquitto mosquitto_pub -t 'solaredge/set/register/40245' -m '{"value": 50}'

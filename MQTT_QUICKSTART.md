@@ -7,13 +7,13 @@
 uv sync
 ```
 
-This will install `paho-mqtt>=1.7.0` along with other project dependencies.
+This will install `paho-mqtt>=2.0.0` along with other project dependencies.
 
 ## Setup with Docker (Easiest)
 
 1. Start Mosquitto MQTT broker:
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 2. In another terminal, run the bridge:
@@ -23,12 +23,12 @@ solaredge-modbus mqtt-bridge --mqtt-host localhost --mqtt-topic solaredge
 
 3. Monitor messages in a third terminal:
 ```bash
-docker exec -it solaredge_modbus-mosquitto_1 mosquitto_sub -t 'solaredge/#' -v
+docker compose exec mosquitto mosquitto_sub -t 'solaredge/#' -v
 ```
 
 4. Send a test command:
 ```bash
-docker exec -it solaredge_modbus-mosquitto_1 mosquitto_pub \
+docker compose exec mosquitto mosquitto_pub \
   -t 'solaredge/set/register/40245' \
   -m '{"value": 50}'
 ```
@@ -119,8 +119,8 @@ See [examples/mqtt_examples.py](examples/mqtt_examples.py) for:
 ## Troubleshooting
 
 ### "Connection refused"
-- Check MQTT broker is running: `docker-compose ps`
-- Verify hostname/port: `docker-compose logs mosquitto`
+- Check MQTT broker is running: `docker compose ps`
+- Verify hostname/port: `docker compose logs mosquitto`
 
 ### "No module named 'paho'"
 - Run `uv sync` to install dependencies
@@ -138,7 +138,7 @@ See [examples/mqtt_examples.py](examples/mqtt_examples.py) for:
 
 **Terminal 1** - Start MQTT broker:
 ```bash
-docker-compose up mosquitto
+docker compose up mosquitto
 ```
 
 **Terminal 2** - Start bridge:
@@ -158,7 +158,7 @@ mosquitto_pub -h localhost -t 'solaredge/set/register/40245' -m '{"value": 50}'
 
 You should see:
 - Terminal 2: "Published data" messages every 30s
-- Terminal 3: JSON data for inverter/mppt/common, then write confirmations
+- Terminal 3: JSON data for inverter/mppt/common and the write command topic payload
 - Terminal 4: Command is sent
 
 Enjoy! 🚀

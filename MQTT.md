@@ -18,7 +18,7 @@ uv sync
 
 ## Usage
 
-### Environment Variables
+### MQTT CLI Options
 
 All MQTT commands support the following options:
 
@@ -26,7 +26,7 @@ All MQTT commands support the following options:
 - `--mqtt-port`: MQTT broker port (default: `1883`)
 - `--mqtt-username`: MQTT broker username (optional)
 - `--mqtt-password`: MQTT broker password (optional)
-- `--mqtt-client-id`: MQTT client ID (default: `solaredge-modbus`)
+- `--mqtt-client-id`: MQTT client ID (optional; auto-generated when omitted)
 - `--mqtt-topic`: Base MQTT topic (default: `solaredge/modbus`)
 
 Plus all standard Modbus connection options (`--transport`, `--host`, `--port`, `--serial-port`, etc.)
@@ -103,20 +103,10 @@ solaredge-modbus mqtt-bridge \
 
 ```
 solaredge/
-├── common/          # Common device model
-│   ├── model
-│   ├── data
-│   └── timestamp
-├── inverter/        # Inverter data
-│   ├── data: {...}  # All inverter metrics
-│   └── timestamp
-├── mppt/            # MPPT extension data
-│   ├── data: {...}  # MPPT metrics
-│   └── timestamp
-└── registers/raw/   # Raw register data
-    ├── address
-    ├── values: [...]
-    └── timestamp
+├── common            # {"model":"common","data":{...},"unit":1,"timestamp":...}
+├── inverter          # {"model":"inverter","data":{...},"unit":1,"timestamp":...}
+├── mppt              # {"model":"mppt","data":{...},"unit":1,"timestamp":...}
+└── registers/raw     # {"address":...,"values":[...],"count":...,"timestamp":...}
 ```
 
 ### Subscribing (Reader)
@@ -177,8 +167,8 @@ You can also use the MQTT gateway directly in Python:
 ### MQTT Writer
 
 ```python
-from solaredge_modbus.client import SolarEdgeModbusClient
-from solaredge_modbus.mqtt_gateway import MQTTWriter, MQTTConfig
+from solaredgemodbus2mqtt.solaredge_modbus.client import SolarEdgeModbusClient
+from solaredgemodbus2mqtt.mqtt import MQTTWriter, MQTTConfig
 
 # Create client and connect
 client = SolarEdgeModbusClient.tcp("127.0.0.1")
@@ -200,7 +190,8 @@ client.close()
 ### MQTT Reader
 
 ```python
-from solaredge_modbus.mqtt_gateway import MQTTReader, MQTTConfig
+from solaredgemodbus2mqtt.solaredge_modbus.client import SolarEdgeModbusClient
+from solaredgemodbus2mqtt.mqtt import MQTTReader, MQTTConfig
 
 client = SolarEdgeModbusClient.tcp("127.0.0.1")
 client.connect()
@@ -224,7 +215,8 @@ client.close()
 ### MQTT Bridge
 
 ```python
-from solaredge_modbus.mqtt_gateway import MQTTBridge, MQTTConfig
+from solaredgemodbus2mqtt.solaredge_modbus.client import SolarEdgeModbusClient
+from solaredgemodbus2mqtt.mqtt import MQTTBridge, MQTTConfig
 
 client = SolarEdgeModbusClient.tcp("127.0.0.1")
 client.connect()
@@ -252,7 +244,7 @@ client.close()
 All MQTT operations can raise `MQTTError` exceptions:
 
 ```python
-from solaredge_modbus.mqtt_gateway import MQTTError
+from solaredgemodbus2mqtt.mqtt import MQTTError
 
 try:
     writer = MQTTWriter(mqtt_config)
@@ -288,11 +280,14 @@ services:
 
   solaredge:
     image: python:3.12
+    working_dir: /app
+    volumes:
+      - ./:/app
     command: >
-      bash -c "pip install paho-mqtt pymodbus pydantic &&
+      bash -c "pip install -e . &&
                solaredge-modbus mqtt-bridge
-               --mqtt-host mosquitto
-               --mqtt-topic solaredge
+                --mqtt-host mosquitto
+                --mqtt-topic solaredge
                --publish-interval 30
                --models inverter mppt"
     depends_on:

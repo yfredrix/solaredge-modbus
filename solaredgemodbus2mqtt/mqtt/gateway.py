@@ -7,7 +7,7 @@ import logging
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from threading import Event, Thread
+from threading import Event, Lock
 from typing import Any, Callable
 
 import paho.mqtt.client as mqtt
@@ -27,7 +27,7 @@ class MQTTConfig:
     broker_port: int = 1883
     username: str | None = None
     password: str | None = None
-    client_id: str = "solaredge-modbus"
+    client_id: str = ""
     keepalive: int = 60
 
 
@@ -46,15 +46,21 @@ class MQTTGatewayBase(ABC):
 
     def connect(self) -> None:
         """Connect to MQTT broker."""
-        if self._client is not None:
+        if self._client is not None and self._connected.is_set():
             return
 
-        self._client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, client_id=self._config.client_id)
+        if self._client is not None:
+            self._client.loop_stop()
+            self._client.disconnect()
+            self._client = None
+            self._connected.clear()
+
+        self._client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=self._config.client_id)
         self._client.on_connect = self._on_connect
         self._client.on_disconnect = self._on_disconnect
         self._client.on_message = self._on_message
 
-        if self._config.username and self._config.password:
+        if self._config.username is not None:
             self._client.username_pw_set(self._config.username, self._config.password)
 
         try:
@@ -86,28 +92,42 @@ class MQTTGatewayBase(ABC):
     def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
         self.disconnect()
 
-    def _on_connect(self, client: mqtt.Client, userdata: Any, flags: dict[str, Any], rc: int, properties: Any) -> None:
+    def _on_connect(
+        self,
+        client: mqtt.Client,
+        userdata: Any,
+        flags: mqtt.ConnectFlags,
+        reason_code: mqtt.ReasonCode,
+        properties: mqtt.Properties | None,
+    ) -> None:
         """Handle MQTT connection."""
-        if rc == 0:
+        if reason_code == 0:
             logger.info("Connected to MQTT broker")
             self._connected.set()
             self._on_connected()
         else:
-            logger.error(f"MQTT connection failed with code {rc}")
+            logger.error(f"MQTT connection failed with code {reason_code}")
             self._connected.clear()
 
-    def _on_disconnect(self, client: mqtt.Client, userdata: Any, rc: int, properties: Any) -> None:
+    def _on_disconnect(
+        self,
+        client: mqtt.Client,
+        userdata: Any,
+        disconnect_flags: mqtt.DisconnectFlags,
+        reason_code: mqtt.ReasonCode,
+        properties: mqtt.Properties | None,
+    ) -> None:
         """Handle MQTT disconnection."""
         self._connected.clear()
-        if rc != 0:
-            logger.warning(f"Unexpected disconnection from MQTT broker (code {rc})")
+        if reason_code != 0:
+            logger.warning(f"Unexpected disconnection from MQTT broker (code {reason_code})")
 
     @abstractmethod
     def _on_connected(self) -> None:
         """Called when connected to broker. Subclasses should implement subscriptions here."""
 
     @abstractmethod
-    def _on_message(self, client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessageInfo) -> None:
+    def _on_message(self, client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
         """Handle incoming MQTT message."""
 
     def _ensure_connected(self) -> None:
@@ -131,7 +151,9 @@ class MQTTGatewayBase(ABC):
         else:
             message = json.dumps(payload)
 
-        self._client.publish(topic, message, qos=qos, retain=retain)
+        publish_info = self._client.publish(topic, message, qos=qos, retain=retain)
+        if publish_info.rc != mqtt.MQTT_ERR_SUCCESS:
+            raise MQTTError(f"Failed to publish MQTT message to {topic}: rc={publish_info.rc}")
         logger.debug(f"Published to {topic}: {message}")
 
 
@@ -151,7 +173,7 @@ class MQTTWriter(MQTTGatewayBase):
     def _on_connected(self) -> None:
         """No subscriptions needed for writer."""
 
-    def _on_message(self, client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessageInfo) -> None:
+    def _on_message(self, client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
         """No messages expected for writer."""
 
     def publish_register(self, register_name: str, value: int | float, topic_suffix: str | None = None, **kwargs: Any) -> None:
@@ -229,7 +251,7 @@ class MQTTReader(MQTTGatewayBase):
         self._client.subscribe(f"{self._base_topic}/registers/+")
         logger.info(f"Subscribed to write topics under {self._base_topic}")
 
-    def _on_message(self, client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessageInfo) -> None:
+    def _on_message(self, client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
         """Handle incoming write command."""
         try:
             topic = msg.topic
@@ -238,18 +260,21 @@ class MQTTReader(MQTTGatewayBase):
             if f"{self._base_topic}/register/" in topic:
                 # Single register write
                 address = int(topic.split("/")[-1])
-                value = int(payload.get("value", 0))
+                if "value" not in payload:
+                    raise ValueError("Missing required 'value' field in register write payload")
+                value = int(payload["value"])
                 logger.info(f"Setting register {address} to {value}")
                 self._write_callback(address, value)
 
             elif f"{self._base_topic}/registers/" in topic:
                 # Bulk register write
                 address = int(topic.split("/")[-1])
-                values = payload.get("values", [])
-                if isinstance(values, (list, tuple)):
-                    values = [int(v) for v in values]
-                    logger.info(f"Setting registers {address}-{address + len(values) - 1} to {values}")
-                    self._write_callback(address, values)
+                values = payload.get("values")
+                if not isinstance(values, (list, tuple)) or not values:
+                    raise ValueError("Missing required non-empty 'values' list in bulk register write payload")
+                values = [int(v) for v in values]
+                logger.info(f"Setting registers {address}-{address + len(values) - 1} to {values}")
+                self._write_callback(address, values)
 
         except (json.JSONDecodeError, ValueError, KeyError) as e:
             logger.error(f"Failed to process MQTT message: {e}")
@@ -276,7 +301,9 @@ class MQTTReader(MQTTGatewayBase):
 class MQTTBridge:
     """Bridge to synchronize Modbus client with MQTT."""
 
-    def __init__(self, modbus_client: Any, mqtt_config: MQTTConfig, base_topic: str = "solaredge/modbus"):
+    def __init__(
+        self, modbus_client: Any, mqtt_config: MQTTConfig, base_topic: str = "solaredge/modbus", modbus_unit: int = 1
+    ):
         """Initialize bridge.
 
         Args:
@@ -287,13 +314,33 @@ class MQTTBridge:
         self._modbus_client = modbus_client
         self._mqtt_config = mqtt_config
         self._base_topic = base_topic
+        self._modbus_unit = modbus_unit
         self._writer: MQTTWriter | None = None
         self._reader: MQTTReader | None = None
+        self._modbus_lock = Lock()
+
+    def _role_config(self, role: str) -> MQTTConfig:
+        client_id = self._mqtt_config.client_id
+        if client_id:
+            client_id = f"{client_id}-{role}"
+        return MQTTConfig(
+            broker_host=self._mqtt_config.broker_host,
+            broker_port=self._mqtt_config.broker_port,
+            username=self._mqtt_config.username,
+            password=self._mqtt_config.password,
+            client_id=client_id,
+            keepalive=self._mqtt_config.keepalive,
+        )
+
+    def modbus_call(self, operation: Callable[[], Any]) -> Any:
+        """Execute one Modbus operation under a lock."""
+        with self._modbus_lock:
+            return operation()
 
     def start_writer(self) -> MQTTWriter:
         """Start MQTT writer."""
         if self._writer is None:
-            self._writer = MQTTWriter(self._mqtt_config, self._base_topic)
+            self._writer = MQTTWriter(self._role_config("writer"), self._base_topic)
             self._writer.connect()
         return self._writer
 
@@ -303,14 +350,14 @@ class MQTTBridge:
         def write_callback(address: int, value: int | list[int]) -> None:
             try:
                 if isinstance(value, list):
-                    self._modbus_client.write_registers(address, value)
+                    self.modbus_call(lambda: self._modbus_client.write_registers(address, value, unit=self._modbus_unit))
                 else:
-                    self._modbus_client.write_register(address, value)
+                    self.modbus_call(lambda: self._modbus_client.write_register(address, value, unit=self._modbus_unit))
             except Exception as e:
                 logger.error(f"Failed to write Modbus register(s): {e}")
 
         if self._reader is None:
-            self._reader = MQTTReader(self._mqtt_config, write_callback, f"{self._base_topic}/set")
+            self._reader = MQTTReader(self._role_config("reader"), write_callback, f"{self._base_topic}/set")
             self._reader.connect()
         return self._reader
 
@@ -327,16 +374,16 @@ class MQTTBridge:
         """Publish inverter data to MQTT."""
         if self._writer is None:
             raise MQTTError("Writer not started")
-        self._writer.publish_model("inverter", data, unit=self._modbus_client._config.kwargs.get("unit", 1))
+        self._writer.publish_model("inverter", data, unit=self._modbus_unit)
 
     def publish_mppt_data(self, data: dict[str, Any]) -> None:
         """Publish MPPT data to MQTT."""
         if self._writer is None:
             raise MQTTError("Writer not started")
-        self._writer.publish_model("mppt", data, unit=self._modbus_client._config.kwargs.get("unit", 1))
+        self._writer.publish_model("mppt", data, unit=self._modbus_unit)
 
     def publish_common_model(self, data: dict[str, Any]) -> None:
         """Publish common model data to MQTT."""
         if self._writer is None:
             raise MQTTError("Writer not started")
-        self._writer.publish_model("common", data, unit=self._modbus_client._config.kwargs.get("unit", 1))
+        self._writer.publish_model("common", data, unit=self._modbus_unit)
