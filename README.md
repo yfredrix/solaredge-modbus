@@ -1,4 +1,4 @@
-# SolarEdge Modbus Module
+# SolarEdge Modbus Module with MQTT sender/receiver
 
 Python module and CLI for reading SolarEdge SunSpec Modbus data and writing setting registers when needed.
 

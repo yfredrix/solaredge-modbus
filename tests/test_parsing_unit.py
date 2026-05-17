@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from solaredge_modbus import registers as reg
-from solaredge_modbus.client import (
+from solaredgemodbus2mqtt.solaredge_modbus import registers as reg
+from solaredgemodbus2mqtt.solaredge_modbus.client import (
     SolarEdgeModbusError,
     SolarEdgeModbusClient,
     TransportConfig,
@@ -72,7 +72,7 @@ def test_connect_does_not_cache_failed_client(monkeypatch: pytest.MonkeyPatch) -
         def close(self) -> None:
             return None
 
-    monkeypatch.setattr("solaredge_modbus.client.ModbusTcpClient", FakeTcpClient)
+    monkeypatch.setattr("solaredgemodbus2mqtt.solaredge_modbus.client.ModbusTcpClient", FakeTcpClient)
     client = SolarEdgeModbusClient(TransportConfig("tcp", {"host": "127.0.0.1"}))
 
     with pytest.raises(SolarEdgeModbusError):
