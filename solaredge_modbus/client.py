@@ -67,14 +67,16 @@ class SolarEdgeModbusClient:
             return
 
         if self._config.transport == "tcp":
-            self._client = ModbusTcpClient(**self._config.kwargs)
+            client: ModbusTcpClient | ModbusSerialClient = ModbusTcpClient(**self._config.kwargs)
         elif self._config.transport == "rtu":
-            self._client = ModbusSerialClient(**self._config.kwargs)
+            client = ModbusSerialClient(**self._config.kwargs)
         else:
             raise SolarEdgeModbusError(f"Unsupported transport: {self._config.transport}")
 
-        if not self._client.connect():
+        if not client.connect():
+            client.close()
             raise SolarEdgeModbusError("Could not connect to Modbus device")
+        self._client = client
 
     def close(self) -> None:
         if self._client is not None:
@@ -219,7 +221,7 @@ class SolarEdgeModbusClient:
             offset = unit_base - reg.MPPT_BASE
 
             if offset + reg.MPPT_UNIT_BLOCK_SIZE > len(full_block):
-                break
+                raise SolarEdgeModbusError("MPPT payload is truncated for declared unit count")
 
             unit_id = _u16(full_block[offset])
             unit_id_str = _decode_string(full_block, offset + 1, 8)
@@ -276,7 +278,9 @@ def _decode_string(registers: list[int], start: int, words: int) -> str:
     return raw.decode("ascii", errors="ignore").rstrip("\x00 ")
 
 
-def _apply_sf(raw_value: int, sf: int) -> float:
+def _apply_sf(raw_value: int, sf: int) -> float | None:
+    if sf == _s16(reg.SUNSPEC_NOT_IMPL_S16):
+        return None
     return float(raw_value * (10**sf))
 
 

@@ -4,7 +4,7 @@ from types import MethodType
 
 import pytest
 
-from solaredge_modbus.client import SolarEdgeModbusClient, TransportConfig
+from solaredge_modbus.client import SolarEdgeModbusClient, SolarEdgeModbusError, TransportConfig
 from solaredge_modbus.models import InverterStatus
 from solaredge_modbus import registers as reg
 
@@ -171,3 +171,26 @@ def test_read_mppt_model_parsing() -> None:
     assert mppt.units[0].dc_current_a == pytest.approx(12.3)
     assert mppt.units[1].unit_id_string == "UNIT1"
     assert mppt.units[1].dc_power_w == pytest.approx(520.0)
+
+
+def test_read_mppt_model_raises_on_truncated_unit_data() -> None:
+    header = [160, 28]
+    payload = [0] * 28
+    payload[0] = 0  # DCA_SF
+    payload[1] = 0  # DCV_SF
+    payload[2] = 0  # DCW_SF
+    payload[6] = 2  # N (unit count) but only enough data for one unit
+
+    client = _new_client()
+
+    def fake_read_holding(self, address: int, count: int, unit: int = 1) -> list[int]:
+        if address == reg.MPPT_BASE and count == 2:
+            return header
+        if address == reg.MPPT_BASE + 2 and count == 28:
+            return payload
+        raise AssertionError(f"Unexpected read {address=} {count=}")
+
+    client.read_holding = MethodType(fake_read_holding, client)
+
+    with pytest.raises(SolarEdgeModbusError, match="truncated"):
+        client.read_mppt_model()

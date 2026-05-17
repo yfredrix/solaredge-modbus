@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import pytest
+
 from solaredge_modbus import registers as reg
 from solaredge_modbus.client import (
+    SolarEdgeModbusError,
+    SolarEdgeModbusClient,
+    TransportConfig,
     _decode_string,
     _s16,
     _scaled_s16,
@@ -47,3 +52,30 @@ def test_scaled_u32_handles_values() -> None:
     # 0x0001_0000 = 65536
     regs = [0x0001, 0x0000]
     assert _scaled_u32(regs, addr=300, base=300, sf=0) == 65536.0
+
+
+def test_scaled_u16_returns_none_when_sf_not_implemented() -> None:
+    regs = [123]
+    assert _scaled_u16(regs, addr=100, base=100, sf=_s16(reg.SUNSPEC_NOT_IMPL_S16)) is None
+
+
+def test_connect_does_not_cache_failed_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    created: list[object] = []
+
+    class FakeTcpClient:
+        def __init__(self, **kwargs: object) -> None:
+            created.append(self)
+
+        def connect(self) -> bool:
+            return False
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr("solaredge_modbus.client.ModbusTcpClient", FakeTcpClient)
+    client = SolarEdgeModbusClient(TransportConfig("tcp", {"host": "127.0.0.1"}))
+
+    with pytest.raises(SolarEdgeModbusError):
+        client.connect()
+    assert client._client is None
+    assert len(created) == 1
