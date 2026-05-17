@@ -1,0 +1,52 @@
+[project]
+name = "solaredge-modbus"
+version = "0.1.0"
+description = "SolarEdge SunSpec Modbus reader/writer module and CLI"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+	{ name = "Skier" },
+]
+keywords = ["solaredge", "modbus", "sunspec", "pymodbus"]
+classifiers = [
+	"Programming Language :: Python :: 3",
+	"Programming Language :: Python :: 3.12",
+	"License :: Other/Proprietary License",
+	"Operating System :: OS Independent",
+]
+dependencies = [
+	"pymodbus>=3.13.0",
+	"pydantic>=2.11.0",
+]
+
+[project.scripts]
+solaredge-modbus = "solaredge_modbus.cli:main"
+
+[dependency-groups]
+dev = [
+	"pytest>=8.3.0",
+	"python-semantic-release>=9.8.0",
+	"build>=1.0.0",
+	"black>=26.5.0",
+]
+
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.black]
+line-length = 127
+
+[tool.uv]
+package = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["solaredge_modbus"]
+
+[tool.semantic_release]
+version_variable = [
+	"pyproject.toml:version",
+]
+branch = "main"
+upload_to_release = false
+build_command = "pip install build && python -m build"
