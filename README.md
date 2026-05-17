@@ -1,6 +1,10 @@
-# SolarEdge Modbus Module
+# SolarEdge Modbus Module with MQTT sender/receiver
 
 Python module and CLI for reading SolarEdge SunSpec Modbus data and writing setting registers when needed.
+
+MQTT gateway documentation:
+- [MQTT.md](MQTT.md)
+- [MQTT_QUICKSTART.md](MQTT_QUICKSTART.md)
 
 Implementation is based on the spec file in this repository:
 
@@ -67,7 +71,7 @@ uv run python main.py --transport rtu --serial-port COM3 --baudrate 115200 --uni
 ## Python Module Usage
 
 ```python
-from solaredge_modbus import SolarEdgeModbusClient
+from solaredgemodbus2mqtt.solaredge_modbus.client import SolarEdgeModbusClient
 
 with SolarEdgeModbusClient.tcp("192.168.1.50", port=1502, timeout=3.0) as client:
 	common = client.read_common_model(unit=1)
@@ -99,8 +103,8 @@ The package includes Pydantic models to validate and describe parsed data fields
 Example:
 
 ```python
-from solaredge_modbus import SolarEdgeModbusClient
-from solaredge_modbus.schemas import InverterDataSchema
+from solaredgemodbus2mqtt.solaredge_modbus.client import SolarEdgeModbusClient
+from solaredgemodbus2mqtt.solaredge_modbus.schemas import InverterDataSchema
 
 with SolarEdgeModbusClient.tcp("192.168.1.50", port=1502) as client:
 	inverter = client.read_inverter_data(unit=1)

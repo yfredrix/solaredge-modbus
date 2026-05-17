@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from solaredge_modbus.models import (
+from solaredgemodbus2mqtt.solaredge_modbus.models import (
     CommonModel,
     InverterData,
     InverterStatus,
     MpptModelData,
     MpptUnitData,
 )
-from solaredge_modbus.schemas import (
+from solaredgemodbus2mqtt.solaredge_modbus.schemas import (
     CommonModelSchema,
     InverterDataSchema,
     MpptModelDataSchema,

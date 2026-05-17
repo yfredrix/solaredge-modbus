@@ -1,5 +1,5 @@
 [project]
-name = "solaredge-modbus"
+name = "solaredgemodbus2mqtt"
 version = "0.1.0"
 description = "SolarEdge SunSpec Modbus reader/writer module and CLI"
 readme = "README.md"
@@ -17,10 +17,11 @@ classifiers = [
 dependencies = [
 	"pymodbus>=3.13.0",
 	"pydantic>=2.11.0",
+	"paho-mqtt>=2.0.0",
 ]
 
 [project.scripts]
-solaredge-modbus = "solaredge_modbus.cli:main"
+solaredge-modbus = "solaredgemodbus2mqtt.solaredge_modbus.cli:main"
 
 [dependency-groups]
 dev = [
@@ -41,7 +42,7 @@ line-length = 127
 package = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["solaredge_modbus"]
+packages = ["solaredgemodbus2mqtt"]
 
 [tool.semantic_release]
 version_variable = [

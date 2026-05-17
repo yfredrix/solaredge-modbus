@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  # MQTT Broker
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    ports:
+      - "127.0.0.1:1883:1883"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mosquitto_data:/mosquitto/data
+    environment:
+      TZ: UTC
+    command: mosquitto -c /mosquitto/config/mosquitto.conf
+
+volumes:
+  mosquitto_data:
+
+# Usage:
+# 1. Start services: docker compose up -d
+# 2. In another terminal, run: solaredge-modbus mqtt-bridge --mqtt-host localhost
+# 3. Monitor messages: docker compose exec mosquitto mosquitto_sub -t 'solaredge/#' -v
+# 4. Send commands: docker compose exec mosquitto mosquitto_pub -t 'solaredge/set/register/40245' -m '{"value": 50}'

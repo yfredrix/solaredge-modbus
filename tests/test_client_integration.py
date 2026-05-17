@@ -4,9 +4,9 @@ from types import MethodType
 
 import pytest
 
-from solaredge_modbus.client import SolarEdgeModbusClient, SolarEdgeModbusError, TransportConfig
-from solaredge_modbus.models import InverterStatus
-from solaredge_modbus import registers as reg
+from solaredgemodbus2mqtt.solaredge_modbus.client import SolarEdgeModbusClient, SolarEdgeModbusError, TransportConfig
+from solaredgemodbus2mqtt.solaredge_modbus.models import InverterStatus
+from solaredgemodbus2mqtt.solaredge_modbus import registers as reg
 
 
 def _encode_ascii_words(text: str, words: int) -> list[int]:
