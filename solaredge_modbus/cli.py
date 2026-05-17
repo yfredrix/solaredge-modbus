@@ -14,9 +14,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--unit", type=int, default=1, help="Modbus unit/device ID")
     parser.add_argument("--host", default="127.0.0.1", help="TCP host")
     parser.add_argument("--port", type=int, default=1502, help="TCP port")
-    parser.add_argument(
-        "--timeout", type=float, default=3.0, help="Socket/serial timeout"
-    )
+    parser.add_argument("--timeout", type=float, default=3.0, help="Socket/serial timeout")
 
     parser.add_argument("--serial-port", default="COM1", help="RTU serial port")
     parser.add_argument("--baudrate", type=int, default=115200)
@@ -30,9 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("read-inverter", help="Read inverter model 101/102/103")
     subparsers.add_parser("read-mppt", help="Read MPPT extension model 160")
 
-    read_regs = subparsers.add_parser(
-        "read-registers", help="Read raw holding registers"
-    )
+    read_regs = subparsers.add_parser("read-registers", help="Read raw holding registers")
     read_regs.add_argument("address", type=int, help="Base-0 Modbus address")
     read_regs.add_argument("count", type=int)
 
@@ -40,9 +36,7 @@ def build_parser() -> argparse.ArgumentParser:
     write_reg.add_argument("address", type=int, help="Base-0 Modbus address")
     write_reg.add_argument("value", type=int)
 
-    write_regs = subparsers.add_parser(
-        "write-registers", help="Write multiple registers"
-    )
+    write_regs = subparsers.add_parser("write-registers", help="Write multiple registers")
     write_regs.add_argument("address", type=int, help="Base-0 Modbus address")
     write_regs.add_argument("values", nargs="+", type=int)
 
@@ -54,9 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _build_client(args: argparse.Namespace) -> SolarEdgeModbusClient:
     if args.transport == "tcp":
-        return SolarEdgeModbusClient.tcp(
-            host=args.host, port=args.port, timeout=args.timeout
-        )
+        return SolarEdgeModbusClient.tcp(host=args.host, port=args.port, timeout=args.timeout)
 
     return SolarEdgeModbusClient.rtu(
         port=args.serial_port,

@@ -24,21 +24,16 @@ def _new_client() -> SolarEdgeModbusClient:
 
 def test_read_common_model_parsing() -> None:
     registers = [0] * 69
-    registers[
-        reg.COMMON_MANUFACTURER
-        - reg.COMMON_BASE : reg.COMMON_MANUFACTURER
-        - reg.COMMON_BASE
-        + 16
-    ] = _encode_ascii_words("SolarEdge", 16)
-    registers[
-        reg.COMMON_MODEL - reg.COMMON_BASE : reg.COMMON_MODEL - reg.COMMON_BASE + 16
-    ] = _encode_ascii_words("SE5000", 16)
-    registers[
-        reg.COMMON_VERSION - reg.COMMON_BASE : reg.COMMON_VERSION - reg.COMMON_BASE + 8
-    ] = _encode_ascii_words("0002.0611", 8)
-    registers[
-        reg.COMMON_SERIAL - reg.COMMON_BASE : reg.COMMON_SERIAL - reg.COMMON_BASE + 16
-    ] = _encode_ascii_words("ABC1234567", 16)
+    registers[reg.COMMON_MANUFACTURER - reg.COMMON_BASE : reg.COMMON_MANUFACTURER - reg.COMMON_BASE + 16] = (
+        _encode_ascii_words("SolarEdge", 16)
+    )
+    registers[reg.COMMON_MODEL - reg.COMMON_BASE : reg.COMMON_MODEL - reg.COMMON_BASE + 16] = _encode_ascii_words("SE5000", 16)
+    registers[reg.COMMON_VERSION - reg.COMMON_BASE : reg.COMMON_VERSION - reg.COMMON_BASE + 8] = _encode_ascii_words(
+        "0002.0611", 8
+    )
+    registers[reg.COMMON_SERIAL - reg.COMMON_BASE : reg.COMMON_SERIAL - reg.COMMON_BASE + 16] = _encode_ascii_words(
+        "ABC1234567", 16
+    )
     registers[reg.COMMON_DEVICE_ADDRESS - reg.COMMON_BASE] = 1
 
     client = _new_client()

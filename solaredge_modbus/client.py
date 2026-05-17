@@ -35,12 +35,8 @@ class SolarEdgeModbusClient:
         self._client: ModbusTcpClient | ModbusSerialClient | None = None
 
     @classmethod
-    def tcp(
-        cls, host: str, port: int = 1502, timeout: float = 3.0
-    ) -> "SolarEdgeModbusClient":
-        return cls(
-            TransportConfig("tcp", {"host": host, "port": port, "timeout": timeout})
-        )
+    def tcp(cls, host: str, port: int = 1502, timeout: float = 3.0) -> "SolarEdgeModbusClient":
+        return cls(TransportConfig("tcp", {"host": host, "port": port, "timeout": timeout}))
 
     @classmethod
     def rtu(
@@ -75,9 +71,7 @@ class SolarEdgeModbusClient:
         elif self._config.transport == "rtu":
             self._client = ModbusSerialClient(**self._config.kwargs)
         else:
-            raise SolarEdgeModbusError(
-                f"Unsupported transport: {self._config.transport}"
-            )
+            raise SolarEdgeModbusError(f"Unsupported transport: {self._config.transport}")
 
         if not self._client.connect():
             raise SolarEdgeModbusError("Could not connect to Modbus device")
@@ -97,9 +91,7 @@ class SolarEdgeModbusClient:
     def read_holding(self, address: int, count: int, unit: int = 1) -> list[int]:
         self._ensure_connected()
         try:
-            response = self._client.read_holding_registers(
-                address, count=count, device_id=unit
-            )
+            response = self._client.read_holding_registers(address, count=count, device_id=unit)
         except ModbusException as exc:
             raise SolarEdgeModbusError(str(exc)) from exc
 
@@ -136,14 +128,10 @@ class SolarEdgeModbusClient:
     def read_common_model(self, unit: int = 1) -> CommonModel:
         registers = self.read_holding(reg.COMMON_BASE, 69, unit=unit)
         return CommonModel(
-            manufacturer=_decode_string(
-                registers, reg.COMMON_MANUFACTURER - reg.COMMON_BASE, 16
-            ),
+            manufacturer=_decode_string(registers, reg.COMMON_MANUFACTURER - reg.COMMON_BASE, 16),
             model=_decode_string(registers, reg.COMMON_MODEL - reg.COMMON_BASE, 16),
             version=_decode_string(registers, reg.COMMON_VERSION - reg.COMMON_BASE, 8),
-            serial_number=_decode_string(
-                registers, reg.COMMON_SERIAL - reg.COMMON_BASE, 16
-            ),
+            serial_number=_decode_string(registers, reg.COMMON_SERIAL - reg.COMMON_BASE, 16),
             device_address=_u16(registers[reg.COMMON_DEVICE_ADDRESS - reg.COMMON_BASE]),
         )
 
@@ -179,73 +167,33 @@ class SolarEdgeModbusClient:
         return InverterData(
             model_id=_u16(registers[reg.INVERTER_DID - reg.INVERTER_BASE]),
             model_length=_u16(registers[reg.INVERTER_LENGTH - reg.INVERTER_BASE]),
-            ac_current_total=_scaled_u16(
-                registers, reg.INVERTER_AC_CURRENT, reg.INVERTER_BASE, current_sf
-            ),
-            ac_current_a=_scaled_u16(
-                registers, reg.INVERTER_AC_CURRENT_A, reg.INVERTER_BASE, current_sf
-            ),
-            ac_current_b=_scaled_u16(
-                registers, reg.INVERTER_AC_CURRENT_B, reg.INVERTER_BASE, current_sf
-            ),
-            ac_current_c=_scaled_u16(
-                registers, reg.INVERTER_AC_CURRENT_C, reg.INVERTER_BASE, current_sf
-            ),
-            ac_voltage_ab=_scaled_u16(
-                registers, reg.INVERTER_AC_VOLTAGE_AB, reg.INVERTER_BASE, voltage_sf
-            ),
-            ac_voltage_bc=_scaled_u16(
-                registers, reg.INVERTER_AC_VOLTAGE_BC, reg.INVERTER_BASE, voltage_sf
-            ),
-            ac_voltage_ca=_scaled_u16(
-                registers, reg.INVERTER_AC_VOLTAGE_CA, reg.INVERTER_BASE, voltage_sf
-            ),
-            ac_voltage_an=_scaled_u16(
-                registers, reg.INVERTER_AC_VOLTAGE_AN, reg.INVERTER_BASE, voltage_sf
-            ),
-            ac_voltage_bn=_scaled_u16(
-                registers, reg.INVERTER_AC_VOLTAGE_BN, reg.INVERTER_BASE, voltage_sf
-            ),
-            ac_voltage_cn=_scaled_u16(
-                registers, reg.INVERTER_AC_VOLTAGE_CN, reg.INVERTER_BASE, voltage_sf
-            ),
-            ac_power_w=_scaled_s16(
-                registers, reg.INVERTER_AC_POWER, reg.INVERTER_BASE, ac_power_sf
-            ),
-            ac_frequency_hz=_scaled_u16(
-                registers, reg.INVERTER_AC_FREQUENCY, reg.INVERTER_BASE, freq_sf
-            ),
-            ac_apparent_power_va=_scaled_s16(
-                registers, reg.INVERTER_AC_VA, reg.INVERTER_BASE, va_sf
-            ),
-            ac_reactive_power_var=_scaled_s16(
-                registers, reg.INVERTER_AC_VAR, reg.INVERTER_BASE, var_sf
-            ),
-            ac_power_factor_pct=_scaled_s16(
-                registers, reg.INVERTER_AC_PF, reg.INVERTER_BASE, pf_sf
-            ),
+            ac_current_total=_scaled_u16(registers, reg.INVERTER_AC_CURRENT, reg.INVERTER_BASE, current_sf),
+            ac_current_a=_scaled_u16(registers, reg.INVERTER_AC_CURRENT_A, reg.INVERTER_BASE, current_sf),
+            ac_current_b=_scaled_u16(registers, reg.INVERTER_AC_CURRENT_B, reg.INVERTER_BASE, current_sf),
+            ac_current_c=_scaled_u16(registers, reg.INVERTER_AC_CURRENT_C, reg.INVERTER_BASE, current_sf),
+            ac_voltage_ab=_scaled_u16(registers, reg.INVERTER_AC_VOLTAGE_AB, reg.INVERTER_BASE, voltage_sf),
+            ac_voltage_bc=_scaled_u16(registers, reg.INVERTER_AC_VOLTAGE_BC, reg.INVERTER_BASE, voltage_sf),
+            ac_voltage_ca=_scaled_u16(registers, reg.INVERTER_AC_VOLTAGE_CA, reg.INVERTER_BASE, voltage_sf),
+            ac_voltage_an=_scaled_u16(registers, reg.INVERTER_AC_VOLTAGE_AN, reg.INVERTER_BASE, voltage_sf),
+            ac_voltage_bn=_scaled_u16(registers, reg.INVERTER_AC_VOLTAGE_BN, reg.INVERTER_BASE, voltage_sf),
+            ac_voltage_cn=_scaled_u16(registers, reg.INVERTER_AC_VOLTAGE_CN, reg.INVERTER_BASE, voltage_sf),
+            ac_power_w=_scaled_s16(registers, reg.INVERTER_AC_POWER, reg.INVERTER_BASE, ac_power_sf),
+            ac_frequency_hz=_scaled_u16(registers, reg.INVERTER_AC_FREQUENCY, reg.INVERTER_BASE, freq_sf),
+            ac_apparent_power_va=_scaled_s16(registers, reg.INVERTER_AC_VA, reg.INVERTER_BASE, va_sf),
+            ac_reactive_power_var=_scaled_s16(registers, reg.INVERTER_AC_VAR, reg.INVERTER_BASE, var_sf),
+            ac_power_factor_pct=_scaled_s16(registers, reg.INVERTER_AC_PF, reg.INVERTER_BASE, pf_sf),
             ac_energy_wh=_scaled_u32(
                 registers,
                 reg.INVERTER_AC_ENERGY_WH,
                 reg.INVERTER_BASE,
                 energy_sf,
             ),
-            dc_current_a=_scaled_u16(
-                registers, reg.INVERTER_DC_CURRENT, reg.INVERTER_BASE, dc_current_sf
-            ),
-            dc_voltage_v=_scaled_u16(
-                registers, reg.INVERTER_DC_VOLTAGE, reg.INVERTER_BASE, dc_voltage_sf
-            ),
-            dc_power_w=_scaled_s16(
-                registers, reg.INVERTER_DC_POWER, reg.INVERTER_BASE, dc_power_sf
-            ),
-            temp_sink_c=_scaled_s16(
-                registers, reg.INVERTER_TEMP_SINK, reg.INVERTER_BASE, temp_sf
-            ),
+            dc_current_a=_scaled_u16(registers, reg.INVERTER_DC_CURRENT, reg.INVERTER_BASE, dc_current_sf),
+            dc_voltage_v=_scaled_u16(registers, reg.INVERTER_DC_VOLTAGE, reg.INVERTER_BASE, dc_voltage_sf),
+            dc_power_w=_scaled_s16(registers, reg.INVERTER_DC_POWER, reg.INVERTER_BASE, dc_power_sf),
+            temp_sink_c=_scaled_s16(registers, reg.INVERTER_TEMP_SINK, reg.INVERTER_BASE, temp_sf),
             status=status,
-            status_vendor_16=_u16(
-                registers[reg.INVERTER_STATUS_VENDOR_16 - reg.INVERTER_BASE]
-            ),
+            status_vendor_16=_u16(registers[reg.INVERTER_STATUS_VENDOR_16 - reg.INVERTER_BASE]),
             status_vendor_32=vendor32,
         )
 
@@ -255,9 +203,7 @@ class SolarEdgeModbusClient:
         model_length = _u16(header[1])
 
         if model_id != 160:
-            raise SolarEdgeModbusError(
-                f"Model at {reg.MPPT_BASE} is {model_id}, expected 160"
-            )
+            raise SolarEdgeModbusError(f"Model at {reg.MPPT_BASE} is {model_id}, expected 160")
 
         payload = self.read_holding(reg.MPPT_BASE + 2, model_length, unit=unit)
         full_block = header + payload

@@ -54,9 +54,7 @@ class InverterDataSchema(BaseModel):
     temp_sink_c: float | None = Field(description="Heat sink temperature in C")
 
     status: str | int = Field(description="Inverter operating state name/code")
-    status_code: int | None = Field(
-        default=None, description="Status code when status is name"
-    )
+    status_code: int | None = Field(default=None, description="Status code when status is name")
     status_vendor_16: int = Field(description="Vendor status/error (16-bit)")
     status_vendor_32: int | None = Field(description="Vendor status/error (32-bit)")
 
