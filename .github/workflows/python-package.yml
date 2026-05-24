@@ -60,5 +60,6 @@ jobs:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         push: "true"
     - name: Publish to PyPI
+      if: steps.python_semantic_release.outputs.released == 'true'
       run: |
         uv publish
