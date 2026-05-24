@@ -55,7 +55,7 @@ major_on_zero = true
 allow_zero_version = true
 no_git_verify = false
 tag_format = "v{version}"
-version_variable = [
+version_toml = [
 	"pyproject.toml:project.version",
 ]
 
@@ -102,4 +102,3 @@ insecure = false
 [tool.semantic_release.publish]
 dist_glob_patterns = ["dist/*"]
 upload_to_vcs_release = true
-upload_to_PyPi = true
