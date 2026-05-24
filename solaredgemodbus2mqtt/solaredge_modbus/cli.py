@@ -272,6 +272,11 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
 
+    if getattr(args, "mqtt_tls_insecure", False) and not (
+        getattr(args, "mqtt_ca_certs", None) or getattr(args, "mqtt_certfile", None)
+    ):
+        parser.error("--mqtt-tls-insecure requires --mqtt-ca-certs or --mqtt-certfile to enable TLS")
+
     client = _build_client(args)
 
     # Handle MQTT commands first (they may not need to open/close in same context)

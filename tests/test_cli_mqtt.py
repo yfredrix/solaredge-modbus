@@ -61,3 +61,16 @@ def test_mqtt_ssl_options_default_to_none() -> None:
     assert args.mqtt_ca_certs is None
     assert args.mqtt_certfile is None
     assert args.mqtt_keyfile is None
+
+
+@pytest.mark.parametrize("command", ["mqtt-publish", "mqtt-listen", "mqtt-bridge"])
+def test_mqtt_tls_insecure_without_tls_certs_raises_error(command: str) -> None:
+    import sys
+    from unittest.mock import patch
+
+    from solaredgemodbus2mqtt.solaredge_modbus.cli import main
+
+    with patch.object(sys, "argv", ["prog", command, "--mqtt-tls-insecure"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        assert exc_info.value.code == 2
