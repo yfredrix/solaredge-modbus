@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 import logging
+import ssl
 import time
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from threading import Event, Lock
 from typing import Any, Callable
 
@@ -29,6 +30,17 @@ class MQTTConfig:
     password: str | None = None
     client_id: str = ""
     keepalive: int = 60
+    # TLS/SSL settings
+    ssl_ca_certs: str | None = None
+    """Path to CA certificate file for server verification."""
+    ssl_certfile: str | None = None
+    """Path to client certificate file for mutual TLS authentication."""
+    ssl_keyfile: str | None = None
+    """Path to client private key file for mutual TLS authentication."""
+    ssl_tls_version: int = field(default_factory=lambda: ssl.PROTOCOL_TLS_CLIENT)
+    """TLS protocol version (default: ssl.PROTOCOL_TLS_CLIENT)."""
+    ssl_insecure: bool = False
+    """When True, disable server certificate hostname verification (not recommended for production)."""
 
 
 class MQTTGatewayBase(ABC):
@@ -62,6 +74,22 @@ class MQTTGatewayBase(ABC):
 
         if self._config.username is not None:
             self._client.username_pw_set(self._config.username, self._config.password)
+
+        tls_requested = (
+            self._config.ssl_ca_certs is not None
+            or self._config.ssl_certfile is not None
+            or self._config.ssl_keyfile is not None
+            or self._config.ssl_insecure
+        )
+        if tls_requested:
+            self._client.tls_set(
+                ca_certs=self._config.ssl_ca_certs,
+                certfile=self._config.ssl_certfile,
+                keyfile=self._config.ssl_keyfile,
+                tls_version=self._config.ssl_tls_version,
+            )
+            if self._config.ssl_insecure:
+                self._client.tls_insecure_set(True)
 
         try:
             self._client.connect(self._config.broker_host, self._config.broker_port, keepalive=self._config.keepalive)
@@ -330,6 +358,11 @@ class MQTTBridge:
             password=self._mqtt_config.password,
             client_id=client_id,
             keepalive=self._mqtt_config.keepalive,
+            ssl_ca_certs=self._mqtt_config.ssl_ca_certs,
+            ssl_certfile=self._mqtt_config.ssl_certfile,
+            ssl_keyfile=self._mqtt_config.ssl_keyfile,
+            ssl_tls_version=self._mqtt_config.ssl_tls_version,
+            ssl_insecure=self._mqtt_config.ssl_insecure,
         )
 
     def modbus_call(self, operation: Callable[[], Any]) -> Any:

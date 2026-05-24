@@ -128,10 +128,82 @@ def example_context_managers() -> None:
         # Resources cleaned up automatically
 
 
+def example_mqtt_ssl_writer() -> None:
+    """Example: Read Modbus values and publish to MQTT broker using SSL/TLS authentication.
+
+    This example demonstrates:
+    - One-way TLS: broker identity is verified against a CA certificate.
+    - Mutual TLS (mTLS): the client also authenticates with its own certificate and key.
+
+    Replace the placeholder paths with your actual certificate files.
+    The broker must be configured to listen on the TLS port (typically 8883).
+    """
+    import time
+
+    # Create Modbus client (adjust host/port to match your inverter)
+    client = SolarEdgeModbusClient.tcp("192.168.1.100", port=1502)
+    writer = None
+    try:
+        client.connect()
+
+        # --- SSL/TLS configuration ---
+        # One-way TLS: only the broker certificate is verified.
+        # Set ssl_ca_certs to the CA bundle that signed the broker's certificate.
+        #
+        # For mutual TLS (mTLS), also supply ssl_certfile and ssl_keyfile so the
+        # broker can verify the identity of this client.
+        mqtt_config = MQTTConfig(
+            broker_host="mqtt.example.com",
+            broker_port=8883,  # Standard MQTT-over-TLS port
+            username="solaredge",  # Optional: broker username
+            password="secret",  # Optional: broker password
+            client_id="solaredge-inverter-1",
+            # TLS: path to the CA certificate that signed the broker's certificate
+            ssl_ca_certs="/etc/ssl/certs/ca-bundle.crt",
+            # mTLS: uncomment the two lines below and point to your client cert/key
+            # ssl_certfile="/etc/ssl/client/client.crt",
+            # ssl_keyfile="/etc/ssl/client/client.key",
+        )
+
+        writer = MQTTWriter(mqtt_config, base_topic="solaredge/modbus")
+        writer.connect()
+
+        print("Connected to MQTT broker with SSL/TLS. Publishing data every 30 seconds...")
+        print("Press Ctrl+C to stop.\n")
+
+        iteration = 0
+        try:
+            while True:
+                iteration += 1
+                try:
+                    # Read all available models from the inverter
+                    inverter_data = client.read_inverter_data()
+                    writer.publish_model("inverter", inverter_data.to_dict())
+
+                    common_data = client.read_common_model()
+                    writer.publish_model("common", common_data.to_dict())
+
+                    mppt_data = client.read_mppt_model()
+                    writer.publish_model("mppt", mppt_data.to_dict())
+
+                    print(f"[{iteration}] Published inverter, common, and MPPT data at {time.strftime('%H:%M:%S')}")
+                except Exception as e:
+                    print(f"[{iteration}] Error reading Modbus data: {e}")
+
+                time.sleep(30)
+        except KeyboardInterrupt:
+            print("\nStopped by user.")
+    finally:
+        if writer is not None:
+            writer.disconnect()
+        client.close()
+
+
 if __name__ == "__main__":
     # Run examples:
     # example_mqtt_writer()
     # example_mqtt_reader()
     # example_mqtt_bridge()
     # example_context_managers()
+    # example_mqtt_ssl_writer()
     print("See examples above - uncomment to run")

@@ -42,6 +42,15 @@ def build_parser() -> argparse.ArgumentParser:
     mqtt_parser.add_argument("--mqtt-password", help="MQTT password")
     mqtt_parser.add_argument("--mqtt-client-id", default="", help="MQTT client ID")
     mqtt_parser.add_argument("--mqtt-topic", default="solaredge/modbus", help="MQTT base topic")
+    mqtt_parser.add_argument("--mqtt-ca-certs", metavar="PATH", help="Path to CA certificate file for TLS (enables SSL)")
+    mqtt_parser.add_argument("--mqtt-certfile", metavar="PATH", help="Path to client certificate file for mutual TLS")
+    mqtt_parser.add_argument("--mqtt-keyfile", metavar="PATH", help="Path to client private key file for mutual TLS")
+    mqtt_parser.add_argument(
+        "--mqtt-tls-insecure",
+        action="store_true",
+        default=False,
+        help="Disable TLS hostname verification (not recommended for production)",
+    )
 
     subparsers.add_parser("read-common", help="Read SunSpec common model")
     subparsers.add_parser("read-inverter", help="Read inverter model 101/102/103")
@@ -120,6 +129,10 @@ def _build_mqtt_config(args: argparse.Namespace) -> MQTTConfig:
         username=args.mqtt_username,
         password=args.mqtt_password,
         client_id=args.mqtt_client_id,
+        ssl_ca_certs=args.mqtt_ca_certs,
+        ssl_certfile=args.mqtt_certfile,
+        ssl_keyfile=args.mqtt_keyfile,
+        ssl_insecure=args.mqtt_tls_insecure,
     )
 
 
@@ -258,6 +271,11 @@ def _handle_mqtt_bridge(client: SolarEdgeModbusClient, args: argparse.Namespace)
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
+
+    if getattr(args, "mqtt_tls_insecure", False) and not (
+        getattr(args, "mqtt_ca_certs", None) or getattr(args, "mqtt_certfile", None)
+    ):
+        parser.error("--mqtt-tls-insecure requires --mqtt-ca-certs or --mqtt-certfile to enable TLS")
 
     client = _build_client(args)
 

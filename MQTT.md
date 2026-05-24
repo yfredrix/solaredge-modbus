@@ -16,6 +16,51 @@ The MQTT functionality requires the `paho-mqtt` package, which is included in th
 uv sync
 ```
 
+## SSL/TLS Support
+
+All MQTT connections support SSL/TLS encryption and authentication. The standard MQTT-over-TLS port is **8883**.
+
+Two modes are supported:
+
+| Mode | What it does | Required fields |
+|------|-------------|-----------------|
+| One-way TLS | Verifies the **broker** certificate against a CA | `ssl_ca_certs` |
+| Mutual TLS (mTLS) | Both broker and **client** certificates are verified | `ssl_ca_certs` + `ssl_certfile` + `ssl_keyfile` |
+
+### CLI SSL options
+
+| Option | Description |
+|--------|-------------|
+| `--mqtt-ca-certs PATH` | Path to CA certificate file — enables TLS |
+| `--mqtt-certfile PATH` | Path to client certificate (mTLS) |
+| `--mqtt-keyfile PATH` | Path to client private key (mTLS) |
+| `--mqtt-tls-insecure` | Skip hostname verification (**not** for production) |
+
+#### One-way TLS example
+
+```bash
+solaredge-modbus mqtt-publish \
+  --mqtt-host mqtt.example.com \
+  --mqtt-port 8883 \
+  --mqtt-ca-certs /etc/ssl/certs/ca-bundle.crt \
+  --mqtt-topic solaredge \
+  --interval 30 \
+  --models inverter mppt common
+```
+
+#### Mutual TLS example
+
+```bash
+solaredge-modbus mqtt-bridge \
+  --mqtt-host mqtt.example.com \
+  --mqtt-port 8883 \
+  --mqtt-ca-certs /etc/ssl/certs/ca-bundle.crt \
+  --mqtt-certfile /etc/ssl/client/client.crt \
+  --mqtt-keyfile  /etc/ssl/client/client.key \
+  --mqtt-topic solaredge \
+  --publish-interval 30
+```
+
 ## Usage
 
 ### MQTT CLI Options
@@ -164,7 +209,7 @@ Topic: `solaredge/inverter`
 
 You can also use the MQTT gateway directly in Python:
 
-### MQTT Writer
+### MQTT Writer (plain)
 
 ```python
 from solaredgemodbus2mqtt.solaredge_modbus.client import SolarEdgeModbusClient
@@ -182,6 +227,46 @@ writer.connect()
 # Publish data
 inverter_data = client.read_inverter_data()
 writer.publish_model("inverter", inverter_data.to_dict())
+
+writer.disconnect()
+client.close()
+```
+
+### MQTT Writer with SSL/TLS
+
+```python
+from solaredgemodbus2mqtt.solaredge_modbus.client import SolarEdgeModbusClient
+from solaredgemodbus2mqtt.mqtt import MQTTWriter, MQTTConfig
+
+client = SolarEdgeModbusClient.tcp("192.168.1.100", port=1502)
+client.connect()
+
+# One-way TLS: broker certificate verified against CA bundle
+mqtt_config = MQTTConfig(
+    broker_host="mqtt.example.com",
+    broker_port=8883,
+    username="solaredge",      # optional
+    password="secret",         # optional
+    ssl_ca_certs="/etc/ssl/certs/ca-bundle.crt",
+)
+
+# Mutual TLS: add client certificate and key
+# mqtt_config = MQTTConfig(
+#     broker_host="mqtt.example.com",
+#     broker_port=8883,
+#     ssl_ca_certs="/etc/ssl/certs/ca-bundle.crt",
+#     ssl_certfile="/etc/ssl/client/client.crt",
+#     ssl_keyfile="/etc/ssl/client/client.key",
+# )
+
+writer = MQTTWriter(mqtt_config, base_topic="solaredge")
+writer.connect()
+
+inverter_data = client.read_inverter_data()
+writer.publish_model("inverter", inverter_data.to_dict())
+
+common_data = client.read_common_model()
+writer.publish_model("common", common_data.to_dict())
 
 writer.disconnect()
 client.close()
