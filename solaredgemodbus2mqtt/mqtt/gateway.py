@@ -75,7 +75,13 @@ class MQTTGatewayBase(ABC):
         if self._config.username is not None:
             self._client.username_pw_set(self._config.username, self._config.password)
 
-        if self._config.ssl_ca_certs is not None or self._config.ssl_certfile is not None:
+        tls_requested = (
+            self._config.ssl_ca_certs is not None
+            or self._config.ssl_certfile is not None
+            or self._config.ssl_keyfile is not None
+            or self._config.ssl_insecure
+        )
+        if tls_requested:
             self._client.tls_set(
                 ca_certs=self._config.ssl_ca_certs,
                 certfile=self._config.ssl_certfile,

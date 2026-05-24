@@ -115,10 +115,7 @@ def test_connect_calls_tls_set_when_ca_certs_provided() -> None:
 
     with patch("paho.mqtt.client.Client", return_value=mock_client):
         reader._connected = connected_event  # type: ignore[assignment]
-        try:
-            reader.connect()
-        except Exception:
-            pass
+        reader.connect()
 
     mock_client.tls_set.assert_called_once_with(
         ca_certs="/path/to/ca.crt",
@@ -144,10 +141,7 @@ def test_connect_calls_tls_insecure_set_when_ssl_insecure_true() -> None:
 
     with patch("paho.mqtt.client.Client", return_value=mock_client):
         reader._connected = connected_event  # type: ignore[assignment]
-        try:
-            reader.connect()
-        except Exception:
-            pass
+        reader.connect()
 
     mock_client.tls_insecure_set.assert_called_once_with(True)
 
@@ -162,10 +156,7 @@ def test_connect_skips_tls_when_no_ssl_config() -> None:
 
     with patch("paho.mqtt.client.Client", return_value=mock_client):
         reader._connected = connected_event  # type: ignore[assignment]
-        try:
-            reader.connect()
-        except Exception:
-            pass
+        reader.connect()
 
     mock_client.tls_set.assert_not_called()
     mock_client.tls_insecure_set.assert_not_called()
